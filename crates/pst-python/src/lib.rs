@@ -1,8 +1,8 @@
-use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyBytes};
-use std::rc::Rc;
-use outlook_pst::ndb::node_id::NodeId;
 use outlook_pst::messaging::store::EntryId;
+use outlook_pst::ndb::node_id::NodeId;
+use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyDict, PyList};
+use std::rc::Rc;
 
 mod errors;
 mod property_value;
@@ -24,7 +24,7 @@ fn entry_id_to_dict<'a>(py: Python<'a>, entry_id: &EntryId) -> PyResult<Bound<'a
 fn parse_node_id(node_id_str: &str) -> Result<NodeId, PstPythonError> {
     let node_id = NodeId::from(
         u32::from_str_radix(node_id_str.trim_start_matches("0x"), 16)
-            .map_err(|_| PstPythonError::new("Invalid node_id format".to_string()))?
+            .map_err(|_| PstPythonError::new("Invalid node_id format".to_string()))?,
     );
     Ok(node_id)
 }
@@ -57,37 +57,54 @@ impl PyStoreProperties {
     }
 
     fn record_key<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyBytes>> {
-        let record_key = self.store.properties().record_key()
+        let record_key = self
+            .store
+            .properties()
+            .record_key()
             .map_err(|e| PstPythonError::from(e))?;
         Ok(PyBytes::new_bound(py, record_key.record_key()))
     }
 
     fn make_entry_id<'a>(&self, py: Python<'a>, node_id_str: &str) -> PyResult<Bound<'a, PyDict>> {
         let node_id = parse_node_id(node_id_str)?;
-        let entry_id = self.store.properties().make_entry_id(node_id)
+        let entry_id = self
+            .store
+            .properties()
+            .make_entry_id(node_id)
             .map_err(|e| PstPythonError::from(e))?;
         entry_id_to_dict(py, &entry_id)
     }
 
     fn display_name(&self) -> PyResult<String> {
-        self.store.properties().display_name()
+        self.store
+            .properties()
+            .display_name()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn ipm_sub_tree_entry_id<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
-        let entry_id = self.store.properties().ipm_sub_tree_entry_id()
+        let entry_id = self
+            .store
+            .properties()
+            .ipm_sub_tree_entry_id()
             .map_err(|e| PstPythonError::from(e))?;
         entry_id_to_dict(py, &entry_id)
     }
 
     fn ipm_wastebasket_entry_id<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
-        let entry_id = self.store.properties().ipm_wastebasket_entry_id()
+        let entry_id = self
+            .store
+            .properties()
+            .ipm_wastebasket_entry_id()
             .map_err(|e| PstPythonError::from(e))?;
         entry_id_to_dict(py, &entry_id)
     }
 
     fn finder_entry_id<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
-        let entry_id = self.store.properties().finder_entry_id()
+        let entry_id = self
+            .store
+            .properties()
+            .finder_entry_id()
             .map_err(|e| PstPythonError::from(e))?;
         entry_id_to_dict(py, &entry_id)
     }
@@ -125,22 +142,30 @@ impl PyFolderProperties {
     }
 
     fn display_name(&self) -> PyResult<String> {
-        self.folder.properties().display_name()
+        self.folder
+            .properties()
+            .display_name()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn content_count(&self) -> PyResult<i32> {
-        self.folder.properties().content_count()
+        self.folder
+            .properties()
+            .content_count()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn unread_count(&self) -> PyResult<i32> {
-        self.folder.properties().unread_count()
+        self.folder
+            .properties()
+            .unread_count()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn has_sub_folders(&self) -> PyResult<bool> {
-        self.folder.properties().has_sub_folders()
+        self.folder
+            .properties()
+            .has_sub_folders()
             .map_err(|e| PstPythonError::from(e).into())
     }
 }
@@ -173,27 +198,38 @@ impl PyMessageProperties {
     }
 
     fn message_class(&self) -> PyResult<String> {
-        self.message.properties().message_class()
+        self.message
+            .properties()
+            .message_class()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn message_flags(&self) -> PyResult<i32> {
-        self.message.properties().message_flags()
+        self.message
+            .properties()
+            .message_flags()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn message_size(&self) -> PyResult<i32> {
-        self.message.properties().message_size()
+        self.message
+            .properties()
+            .message_size()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn message_status(&self) -> PyResult<i32> {
-        self.message.properties().message_status()
+        self.message
+            .properties()
+            .message_status()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn creation_time<'a>(&self, py: Python<'a>) -> PyResult<PyObject> {
-        let time = self.message.properties().creation_time()
+        let time = self
+            .message
+            .properties()
+            .creation_time()
             .map_err(|e| PstPythonError::from(e))?;
         let windows_epoch = 116444736000000000u64;
         let unix_timestamp = (time as u64).saturating_sub(windows_epoch) / 10_000_000;
@@ -204,7 +240,10 @@ impl PyMessageProperties {
     }
 
     fn last_modification_time<'a>(&self, py: Python<'a>) -> PyResult<PyObject> {
-        let time = self.message.properties().last_modification_time()
+        let time = self
+            .message
+            .properties()
+            .last_modification_time()
             .map_err(|e| PstPythonError::from(e))?;
         let windows_epoch = 116444736000000000u64;
         let unix_timestamp = (time as u64).saturating_sub(windows_epoch) / 10_000_000;
@@ -215,7 +254,10 @@ impl PyMessageProperties {
     }
 
     fn search_key<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyBytes>> {
-        let key = self.message.properties().search_key()
+        let key = self
+            .message
+            .properties()
+            .search_key()
             .map_err(|e| PstPythonError::from(e))?;
         Ok(PyBytes::new_bound(py, key))
     }
@@ -262,7 +304,8 @@ impl PyTableContext {
             row_dict.set_item("id", u32::from(row.id()))?;
             row_dict.set_item("unique", row.unique())?;
 
-            let columns = row.columns(context)
+            let columns = row
+                .columns(context)
                 .map_err(|e| PstPythonError::new(format!("Failed to read columns: {}", e)))?;
 
             let props_dict = PyDict::new_bound(py);
@@ -285,7 +328,9 @@ impl PyTableContext {
 
     fn find_row<'a>(&self, py: Python<'a>, row_id: u32) -> PyResult<Bound<'a, PyDict>> {
         let table_row_id = outlook_pst::ltp::table_context::TableRowId::new(row_id);
-        let row = self.table.find_row(table_row_id)
+        let row = self
+            .table
+            .find_row(table_row_id)
             .map_err(|e| PstPythonError::new(format!("Row not found: {}", e)))?;
         let context = self.table.context();
 
@@ -293,7 +338,8 @@ impl PyTableContext {
         row_dict.set_item("id", u32::from(row.id()))?;
         row_dict.set_item("unique", row.unique())?;
 
-        let columns = row.columns(context)
+        let columns = row
+            .columns(context)
             .map_err(|e| PstPythonError::new(format!("Failed to read columns: {}", e)))?;
 
         let props_dict = PyDict::new_bound(py);
@@ -341,12 +387,17 @@ impl PyNamedPropertyMapProperties {
     }
 
     fn bucket_count(&self) -> PyResult<u16> {
-        self.map.properties().bucket_count()
+        self.map
+            .properties()
+            .bucket_count()
             .map_err(|e| PstPythonError::from(e).into())
     }
 
     fn stream_guid<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyList>> {
-        let guids = self.map.properties().stream_guid()
+        let guids = self
+            .map
+            .properties()
+            .stream_guid()
             .map_err(|e| PstPythonError::from(e))?;
         let list = PyList::empty_bound(py);
         for guid in guids {
@@ -356,7 +407,10 @@ impl PyNamedPropertyMapProperties {
     }
 
     fn stream_entry<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyList>> {
-        let entries = self.map.properties().stream_entry()
+        let entries = self
+            .map
+            .properties()
+            .stream_entry()
             .map_err(|e| PstPythonError::from(e))?;
         let list = PyList::empty_bound(py);
         for entry in entries {
@@ -378,7 +432,10 @@ impl PyNamedPropertyMapProperties {
     }
 
     fn stream_string<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyList>> {
-        let strings = self.map.properties().stream_string()
+        let strings = self
+            .map
+            .properties()
+            .stream_string()
             .map_err(|e| PstPythonError::from(e))?;
         let list = PyList::empty_bound(py);
         for string_entry in strings {
@@ -426,73 +483,129 @@ impl PySearchUpdateQueue {
             if let Some(data) = update.data() {
                 let data_dict = PyDict::new_bound(py);
                 match data {
-                    outlook_pst::messaging::search::SearchUpdateData::MessageAdded { parent, message } => {
+                    outlook_pst::messaging::search::SearchUpdateData::MessageAdded {
+                        parent,
+                        message,
+                    } => {
                         data_dict.set_item("type", "MessageAdded")?;
                         data_dict.set_item("parent", format!("{:X}", u32::from(*parent)))?;
                         data_dict.set_item("message", format!("{:X}", u32::from(*message)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::MessageModified { parent, message } => {
+                    outlook_pst::messaging::search::SearchUpdateData::MessageModified {
+                        parent,
+                        message,
+                    } => {
                         data_dict.set_item("type", "MessageModified")?;
                         data_dict.set_item("parent", format!("{:X}", u32::from(*parent)))?;
                         data_dict.set_item("message", format!("{:X}", u32::from(*message)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::MessageDeleted { parent, message } => {
+                    outlook_pst::messaging::search::SearchUpdateData::MessageDeleted {
+                        parent,
+                        message,
+                    } => {
                         data_dict.set_item("type", "MessageDeleted")?;
                         data_dict.set_item("parent", format!("{:X}", u32::from(*parent)))?;
                         data_dict.set_item("message", format!("{:X}", u32::from(*message)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::MessageMoved { new_parent, message, old_parent } => {
+                    outlook_pst::messaging::search::SearchUpdateData::MessageMoved {
+                        new_parent,
+                        message,
+                        old_parent,
+                    } => {
                         data_dict.set_item("type", "MessageMoved")?;
-                        data_dict.set_item("new_parent", format!("{:X}", u32::from(*new_parent)))?;
+                        data_dict
+                            .set_item("new_parent", format!("{:X}", u32::from(*new_parent)))?;
                         data_dict.set_item("message", format!("{:X}", u32::from(*message)))?;
-                        data_dict.set_item("old_parent", format!("{:X}", u32::from(*old_parent)))?;
+                        data_dict
+                            .set_item("old_parent", format!("{:X}", u32::from(*old_parent)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::FolderAdded { parent, folder, .. } => {
+                    outlook_pst::messaging::search::SearchUpdateData::FolderAdded {
+                        parent,
+                        folder,
+                        ..
+                    } => {
                         data_dict.set_item("type", "FolderAdded")?;
                         data_dict.set_item("parent", format!("{:X}", u32::from(*parent)))?;
                         data_dict.set_item("folder", format!("{:X}", u32::from(*folder)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::FolderModified { folder, .. } => {
+                    outlook_pst::messaging::search::SearchUpdateData::FolderModified {
+                        folder,
+                        ..
+                    } => {
                         data_dict.set_item("type", "FolderModified")?;
                         data_dict.set_item("folder", format!("{:X}", u32::from(*folder)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::FolderDeleted { folder, .. } => {
+                    outlook_pst::messaging::search::SearchUpdateData::FolderDeleted {
+                        folder,
+                        ..
+                    } => {
                         data_dict.set_item("type", "FolderDeleted")?;
                         data_dict.set_item("folder", format!("{:X}", u32::from(*folder)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::FolderMoved { parent, folder, .. } => {
+                    outlook_pst::messaging::search::SearchUpdateData::FolderMoved {
+                        parent,
+                        folder,
+                        ..
+                    } => {
                         data_dict.set_item("type", "FolderMoved")?;
                         data_dict.set_item("parent", format!("{:X}", u32::from(*parent)))?;
                         data_dict.set_item("folder", format!("{:X}", u32::from(*folder)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::SearchFolderAdded { search_folder } => {
+                    outlook_pst::messaging::search::SearchUpdateData::SearchFolderAdded {
+                        search_folder,
+                    } => {
                         data_dict.set_item("type", "SearchFolderAdded")?;
-                        data_dict.set_item("search_folder", format!("{:X}", u32::from(*search_folder)))?;
+                        data_dict.set_item(
+                            "search_folder",
+                            format!("{:X}", u32::from(*search_folder)),
+                        )?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::SearchFolderModified { search_folder, .. } => {
+                    outlook_pst::messaging::search::SearchUpdateData::SearchFolderModified {
+                        search_folder,
+                        ..
+                    } => {
                         data_dict.set_item("type", "SearchFolderModified")?;
-                        data_dict.set_item("search_folder", format!("{:X}", u32::from(*search_folder)))?;
+                        data_dict.set_item(
+                            "search_folder",
+                            format!("{:X}", u32::from(*search_folder)),
+                        )?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::SearchFolderDeleted { search_folder } => {
+                    outlook_pst::messaging::search::SearchUpdateData::SearchFolderDeleted {
+                        search_folder,
+                    } => {
                         data_dict.set_item("type", "SearchFolderDeleted")?;
-                        data_dict.set_item("search_folder", format!("{:X}", u32::from(*search_folder)))?;
+                        data_dict.set_item(
+                            "search_folder",
+                            format!("{:X}", u32::from(*search_folder)),
+                        )?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::MessageRowModified { parent, message } => {
+                    outlook_pst::messaging::search::SearchUpdateData::MessageRowModified {
+                        parent,
+                        message,
+                    } => {
                         data_dict.set_item("type", "MessageRowModified")?;
                         data_dict.set_item("parent", format!("{:X}", u32::from(*parent)))?;
                         data_dict.set_item("message", format!("{:X}", u32::from(*message)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::MessageSpam { parent, message } => {
+                    outlook_pst::messaging::search::SearchUpdateData::MessageSpam {
+                        parent,
+                        message,
+                    } => {
                         data_dict.set_item("type", "MessageSpam")?;
                         data_dict.set_item("parent", format!("{:X}", u32::from(*parent)))?;
                         data_dict.set_item("message", format!("{:X}", u32::from(*message)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::IndexedMessageDeleted { parent, message } => {
+                    outlook_pst::messaging::search::SearchUpdateData::IndexedMessageDeleted {
+                        parent,
+                        message,
+                    } => {
                         data_dict.set_item("type", "IndexedMessageDeleted")?;
                         data_dict.set_item("parent", format!("{:X}", u32::from(*parent)))?;
                         data_dict.set_item("message", format!("{:X}", u32::from(*message)))?;
                     }
-                    outlook_pst::messaging::search::SearchUpdateData::MessageIndexed { message } => {
+                    outlook_pst::messaging::search::SearchUpdateData::MessageIndexed {
+                        message,
+                    } => {
                         data_dict.set_item("type", "MessageIndexed")?;
                         data_dict.set_item("message", format!("{:X}", u32::from(*message)))?;
                     }
@@ -602,11 +715,11 @@ impl PyStore {
     }
 
     fn root_hierarchy_table(&self) -> PyResult<PyTableContext> {
-        let table = self.store.root_hierarchy_table()
+        let table = self
+            .store
+            .root_hierarchy_table()
             .map_err(PstPythonError::from)?;
-        Ok(PyTableContext {
-            table,
-        })
+        Ok(PyTableContext { table })
     }
 
     fn unique_value(&self) -> u32 {
@@ -615,9 +728,14 @@ impl PyStore {
 
     fn open_folder(&self, node_id_str: &str) -> PyResult<PyFolder> {
         let node_id = parse_node_id(node_id_str)?;
-        let entry_id = self.store.properties().make_entry_id(node_id)
+        let entry_id = self
+            .store
+            .properties()
+            .make_entry_id(node_id)
             .map_err(|e| PstPythonError::from(e))?;
-        let folder = self.store.open_folder(&entry_id)
+        let folder = self
+            .store
+            .open_folder(&entry_id)
             .map_err(|e| PstPythonError::from(e))?;
         Ok(PyFolder { folder })
     }
@@ -625,22 +743,31 @@ impl PyStore {
     #[pyo3(signature = (node_id_str, prop_ids=None))]
     fn open_message(&self, node_id_str: &str, prop_ids: Option<Vec<u16>>) -> PyResult<PyMessage> {
         let node_id = parse_node_id(node_id_str)?;
-        let entry_id = self.store.properties().make_entry_id(node_id)
+        let entry_id = self
+            .store
+            .properties()
+            .make_entry_id(node_id)
             .map_err(|e| PstPythonError::from(e))?;
         let prop_ids_slice = prop_ids.as_deref();
-        let message = self.store.open_message(&entry_id, prop_ids_slice)
+        let message = self
+            .store
+            .open_message(&entry_id, prop_ids_slice)
             .map_err(|e| PstPythonError::from(e))?;
         Ok(PyMessage { message })
     }
 
     fn named_property_map(&self) -> PyResult<PyNamedPropertyMap> {
-        let map = self.store.named_property_map()
+        let map = self
+            .store
+            .named_property_map()
             .map_err(PstPythonError::from)?;
         Ok(PyNamedPropertyMap { map })
     }
 
     fn search_update_queue(&self) -> PyResult<PySearchUpdateQueue> {
-        let queue = self.store.search_update_queue()
+        let queue = self
+            .store
+            .search_update_queue()
             .map_err(PstPythonError::from)?;
         Ok(PySearchUpdateQueue { queue })
     }
@@ -664,7 +791,6 @@ fn pst_python(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[pyfunction]
 fn open_pst(path: &str) -> PyResult<PyStore> {
-    let store = outlook_pst::open_store(path)
-        .map_err(PstPythonError::from)?;
+    let store = outlook_pst::open_store(path).map_err(PstPythonError::from)?;
     Ok(PyStore { store })
 }

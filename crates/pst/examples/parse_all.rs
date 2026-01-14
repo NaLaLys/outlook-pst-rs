@@ -4,11 +4,7 @@ use outlook_pst::{
         prop_context::PropertyValue,
         table_context::{TableContext, TableRowData},
     },
-    messaging::{
-        folder::Folder as PstFolder,
-        message::Message as PstMessage,
-        store::Store,
-    },
+    messaging::{folder::Folder as PstFolder, message::Message as PstMessage, store::Store},
     ndb::node_id::NodeId,
 };
 use std::rc::Rc;
@@ -153,16 +149,16 @@ fn print_named_properties(store: &Rc<dyn Store>) -> anyhow::Result<()> {
                             outlook_pst::messaging::named_prop::NamedPropertyId::Number(id) => {
                                 println!("  ID: Number(0x{id:08X})");
                             }
-                            outlook_pst::messaging::named_prop::NamedPropertyId::StringOffset(index) => {
-                                match properties.lookup_string(index) {
-                                    Ok(string_entry) => {
-                                        println!("  ID: String({:?})", string_entry.to_string());
-                                    }
-                                    Err(_) => {
-                                        println!("  ID: StringOffset(0x{index:08X})");
-                                    }
+                            outlook_pst::messaging::named_prop::NamedPropertyId::StringOffset(
+                                index,
+                            ) => match properties.lookup_string(index) {
+                                Ok(string_entry) => {
+                                    println!("  ID: String({:?})", string_entry.to_string());
                                 }
-                            }
+                                Err(_) => {
+                                    println!("  ID: StringOffset(0x{index:08X})");
+                                }
+                            },
                         }
                     }
                     println!("Total named properties: {count}\n");
@@ -212,16 +208,20 @@ fn print_folder_hierarchy(store: &Rc<dyn Store>) -> anyhow::Result<()> {
     for row in hierarchy_table.rows_matrix() {
         let node = NodeId::from(u32::from(row.id()));
         match store.properties().make_entry_id(node) {
-            Ok(entry_id) => {
-                match store.open_folder(&entry_id) {
-                    Ok(folder) => folders.push(folder),
-                    Err(e) => {
-                        eprintln!("Warning: Failed to open folder (Node ID: 0x{:X}): {e:?}", u32::from(node));
-                    }
+            Ok(entry_id) => match store.open_folder(&entry_id) {
+                Ok(folder) => folders.push(folder),
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Failed to open folder (Node ID: 0x{:X}): {e:?}",
+                        u32::from(node)
+                    );
                 }
-            }
+            },
             Err(e) => {
-                eprintln!("Warning: Failed to make entry ID (Node ID: 0x{:X}): {e:?}", u32::from(node));
+                eprintln!(
+                    "Warning: Failed to make entry ID (Node ID: 0x{:X}): {e:?}",
+                    u32::from(node)
+                );
             }
         }
     }
@@ -233,7 +233,11 @@ fn print_folder_hierarchy(store: &Rc<dyn Store>) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_folder(store: &Rc<dyn Store>, folder: &Rc<dyn PstFolder>, indent: usize) -> anyhow::Result<()> {
+fn print_folder(
+    store: &Rc<dyn Store>,
+    folder: &Rc<dyn PstFolder>,
+    indent: usize,
+) -> anyhow::Result<()> {
     let indent_str = "  ".repeat(indent);
     let properties = folder.properties();
 
@@ -259,16 +263,16 @@ fn print_folder(store: &Rc<dyn Store>, folder: &Rc<dyn PstFolder>, indent: usize
         for row in hierarchy_table.rows_matrix() {
             let node = NodeId::from(u32::from(row.id()));
             match folder.store().properties().make_entry_id(node) {
-                Ok(entry_id) => {
-                    match folder.store().open_folder(&entry_id) {
-                        Ok(sub_folder) => sub_folders.push(sub_folder),
-                        Err(e) => {
-                            eprintln!("{indent_str}  Warning: Failed to open sub-folder: {e:?}");
-                        }
+                Ok(entry_id) => match folder.store().open_folder(&entry_id) {
+                    Ok(sub_folder) => sub_folders.push(sub_folder),
+                    Err(e) => {
+                        eprintln!("{indent_str}  Warning: Failed to open sub-folder: {e:?}");
                     }
-                }
+                },
                 Err(e) => {
-                    eprintln!("{indent_str}  Warning: Failed to make entry ID for sub-folder: {e:?}");
+                    eprintln!(
+                        "{indent_str}  Warning: Failed to make entry ID for sub-folder: {e:?}"
+                    );
                 }
             }
         }
@@ -398,7 +402,9 @@ fn print_recipients(message: &Rc<dyn PstMessage>, indent: usize) -> anyhow::Resu
             if col.prop_id() == 0x0C15 {
                 // Recipient Type
                 if let Some(value) = value.as_ref() {
-                    if let Ok(PropertyValue::Integer32(rt)) = recipient_table.read_column(value, col.prop_type()) {
+                    if let Ok(PropertyValue::Integer32(rt)) =
+                        recipient_table.read_column(value, col.prop_type())
+                    {
                         recipient_type = Some(rt);
                     }
                 }
