@@ -28,6 +28,7 @@ jobs:
           target: ${{ matrix.target }}
           manylinux: auto
           args: >
+            -m crates/pst-python/Cargo.toml
             --release
             --out dist
             -i python${{ matrix.py }}
