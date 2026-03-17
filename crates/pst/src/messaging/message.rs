@@ -270,13 +270,21 @@ where
 
             let tree = <Pst as PstFile>::PropertyTree::new(heap, header.user_root());
             let prop_context = <Pst as PstFile>::PropertyContext::new(node, tree);
+            let codepage = store.properties().codepage();
             let properties = prop_context
                 .properties()?
                 .into_iter()
                 .filter(|(prop_id, _)| prop_ids.is_none_or(|ids| ids.contains(prop_id)))
                 .map(|(prop_id, record)| {
                     prop_context
-                        .read_property(file, encoding, &block_btree, &mut page_cache, record)
+                        .read_property(
+                            file,
+                            encoding,
+                            &block_btree,
+                            &mut page_cache,
+                            record,
+                            codepage,
+                        )
                         .map(|value| (prop_id, value))
                 })
                 .collect::<io::Result<BTreeMap<_, _>>>()?;

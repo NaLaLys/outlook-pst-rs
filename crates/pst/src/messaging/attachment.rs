@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, io, rc::Rc};
 
-use super::{message::*, read_write::*, *};
+use super::{message::*, read_write::*, store::Store, *};
 use crate::{
     ltp::{
         heap::HeapNode,
@@ -240,12 +240,20 @@ where
             let prop_context = <<Pst as PstFile>::PropertyContext as PropertyContextReadWrite<
                 Pst,
             >>::new(node, tree);
+            let codepage = store.properties().codepage();
             let properties = prop_context
                 .properties()?
                 .into_iter()
                 .map(|(prop_id, record)| {
                     prop_context
-                        .read_property(file, encoding, &block_btree, &mut page_cache, record)
+                        .read_property(
+                            file,
+                            encoding,
+                            &block_btree,
+                            &mut page_cache,
+                            record,
+                            codepage,
+                        )
                         .map(|value| (prop_id, value))
                 })
                 .collect::<io::Result<BTreeMap<_, _>>>()?;

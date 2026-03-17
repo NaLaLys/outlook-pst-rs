@@ -203,16 +203,32 @@ impl PropertyTreeRecordReadWrite for PropertyTreeRecord {
 #[derive(Clone, Default)]
 pub struct String8Value {
     buffer: Vec<u8>,
+    codepage: u16,
 }
 
 impl String8Value {
+    pub fn new(buffer: Vec<u8>, codepage: u16) -> Self {
+        Self { buffer, codepage }
+    }
+
     pub fn buffer(&self) -> &[u8] {
         &self.buffer
+    }
+
+    pub fn codepage(&self) -> u16 {
+        self.codepage
     }
 }
 
 impl Display for String8Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let cp = if self.codepage == 0 { 1252 } else { self.codepage };
+        if let Ok(coding) = codepage_strings::Coding::new(cp) {
+            if let Ok(s) = coding.decode(&self.buffer) {
+                return write!(f, "{s}");
+            }
+        }
+        // Fallback to Latin-1
         let buffer: Vec<_> = self.buffer.iter().map(|&b| u16::from(b)).collect();
         let value = String::from_utf16_lossy(&buffer);
         write!(f, "{value}")
@@ -477,7 +493,7 @@ impl From<&PropertyValue> for PropertyType {
 }
 
 impl PropertyValueReadWrite for PropertyValue {
-    fn read(f: &mut dyn Read, prop_type: PropertyType) -> io::Result<Self> {
+    fn read(f: &mut dyn Read, prop_type: PropertyType, codepage: u16) -> io::Result<Self> {
         match prop_type {
             PropertyType::Floating64 => {
                 let value = f.read_f64::<LittleEndian>()?;
@@ -505,7 +521,7 @@ impl PropertyValueReadWrite for PropertyValue {
                 if let Some(end) = buffer.iter().position(|&b| b == 0) {
                     buffer.truncate(end);
                 }
-                Ok(Self::String8(String8Value { buffer }))
+                Ok(Self::String8(String8Value::new(buffer, codepage)))
             }
 
             PropertyType::Unicode => {
@@ -649,7 +665,7 @@ impl PropertyValueReadWrite for PropertyValue {
                         buffer.truncate(end);
                     }
 
-                    values.push(String8Value { buffer });
+                    values.push(String8Value::new(buffer, codepage));
                 }
 
                 Ok(Self::MultipleString8(values))
@@ -1034,6 +1050,7 @@ where
         block_btree: &PstFileReadWriteBlockBTree<Pst>,
         page_cache: &mut RootBTreePageCache<<Pst as PstFile>::BlockBTree>,
         value: PropertyTreeRecordValue,
+        codepage: u16,
     ) -> io::Result<PropertyValue> {
         match value.value() {
             PropertyValueRecord::Heap(heap_id) => {
@@ -1043,7 +1060,7 @@ where
 
                 let data = self.tree.heap().find_entry(heap_id)?;
                 let mut cursor = Cursor::new(data);
-                PropertyValueReadWrite::read(&mut cursor, value.prop_type())
+                PropertyValueReadWrite::read(&mut cursor, value.prop_type(), codepage)
             }
             PropertyValueRecord::Node(sub_node_id) => {
                 let sub_node =
@@ -1068,7 +1085,7 @@ where
                 block_cache.insert(block.block().block(), data_tree);
                 let _ = result?;
                 let mut cursor = Cursor::new(data);
-                PropertyValueReadWrite::read(&mut cursor, value.prop_type())
+                PropertyValueReadWrite::read(&mut cursor, value.prop_type(), codepage)
             }
             small => small
                 .small_value(value.prop_type())
@@ -1096,6 +1113,7 @@ impl UnicodePropertyContext {
         block_btree: &UnicodeBlockBTree,
         page_cache: &mut RootBTreePageCache<UnicodeBlockBTree>,
         value: PropertyTreeRecordValue,
+        codepage: u16,
     ) -> io::Result<PropertyValue> {
         <Self as PropertyContextReadWrite<UnicodePstFile>>::read_property(
             self,
@@ -1104,6 +1122,7 @@ impl UnicodePropertyContext {
             block_btree,
             page_cache,
             value,
+            codepage,
         )
     }
 }
@@ -1131,9 +1150,10 @@ impl PropertyContextReadWrite<UnicodePstFile> for UnicodePropertyContext {
         block_btree: &UnicodeBlockBTree,
         page_cache: &mut RootBTreePageCache<UnicodeBlockBTree>,
         value: PropertyTreeRecordValue,
+        codepage: u16,
     ) -> io::Result<PropertyValue> {
         self.inner
-            .read_property(f, encoding, block_btree, page_cache, value)
+            .read_property(f, encoding, block_btree, page_cache, value, codepage)
     }
 }
 
@@ -1153,6 +1173,7 @@ impl AnsiPropertyContext {
         block_btree: &AnsiBlockBTree,
         page_cache: &mut RootBTreePageCache<AnsiBlockBTree>,
         value: PropertyTreeRecordValue,
+        codepage: u16,
     ) -> io::Result<PropertyValue> {
         <Self as PropertyContextReadWrite<AnsiPstFile>>::read_property(
             self,
@@ -1161,6 +1182,7 @@ impl AnsiPropertyContext {
             block_btree,
             page_cache,
             value,
+            codepage,
         )
     }
 }
@@ -1188,8 +1210,9 @@ impl PropertyContextReadWrite<AnsiPstFile> for AnsiPropertyContext {
         block_btree: &AnsiBlockBTree,
         page_cache: &mut RootBTreePageCache<AnsiBlockBTree>,
         value: PropertyTreeRecordValue,
+        codepage: u16,
     ) -> io::Result<PropertyValue> {
         self.inner
-            .read_property(f, encoding, block_btree, page_cache, value)
+            .read_property(f, encoding, block_btree, page_cache, value, codepage)
     }
 }
