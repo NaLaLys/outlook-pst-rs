@@ -1,6 +1,10 @@
 //! ## [Message Objects](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-pst/1042af37-aaa4-4edc-bffd-90a1ede24188)
 
-use std::{collections::BTreeMap, io, rc::{Rc, Weak}};
+use std::{
+    collections::BTreeMap,
+    io,
+    rc::{Rc, Weak},
+};
 
 use super::{attachment::Attachment, read_write::*, store::*, *};
 use crate::{

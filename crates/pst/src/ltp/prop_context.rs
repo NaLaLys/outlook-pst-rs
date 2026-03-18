@@ -222,7 +222,11 @@ impl String8Value {
 
 impl Display for String8Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let cp = if self.codepage == 0 { 1252 } else { self.codepage };
+        let cp = if self.codepage == 0 {
+            1252
+        } else {
+            self.codepage
+        };
         if let Ok(coding) = codepage_strings::Coding::new(cp) {
             if let Ok(s) = coding.decode(&self.buffer) {
                 return write!(f, "{s}");

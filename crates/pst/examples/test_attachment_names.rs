@@ -1,10 +1,6 @@
 use outlook_pst::{
     ltp::prop_context::PropertyValue,
-    messaging::{
-        attachment::{AttachmentData},
-        folder::Folder,
-        store::Store,
-    },
+    messaging::{attachment::AttachmentData, folder::Folder, store::Store},
     ndb::node_id::NodeId,
 };
 use std::{fs, rc::Rc};
@@ -71,9 +67,7 @@ fn visit_folder(
                                 let att_cols = att_row.columns(att_ctx)?;
 
                                 let mut att_nid = None;
-                                for (col, val) in
-                                    att_ctx.columns().iter().zip(att_cols.iter())
-                                {
+                                for (col, val) in att_ctx.columns().iter().zip(att_cols.iter()) {
                                     if col.prop_id() == 0x67F2 {
                                         if let Some(val) = val {
                                             if let Ok(PropertyValue::Integer32(n)) =
