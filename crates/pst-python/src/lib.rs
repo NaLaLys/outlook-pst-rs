@@ -696,6 +696,96 @@ impl PyMessage {
             Ok(None)
         }
     }
+
+    #[pyo3(signature = (node_id_str, prop_ids=None))]
+    fn open_attachment(
+        &self,
+        node_id_str: &str,
+        prop_ids: Option<Vec<u16>>,
+    ) -> PyResult<PyAttachment> {
+        let node_id = parse_node_id(node_id_str)?;
+        let prop_ids_slice = prop_ids.as_deref();
+        let attachment = self
+            .message
+            .open_attachment(node_id, prop_ids_slice)
+            .map_err(|e| PstPythonError::from(e))?;
+        Ok(PyAttachment { attachment })
+    }
+}
+
+// AttachmentProperties
+#[pyclass]
+pub struct PyAttachmentProperties {
+    attachment: Rc<dyn outlook_pst::messaging::attachment::Attachment>,
+}
+
+unsafe impl Send for PyAttachmentProperties {}
+
+#[pymethods]
+impl PyAttachmentProperties {
+    fn get(&self, py: Python, prop_id: u16) -> PyResult<PyObject> {
+        if let Some(value) = self.attachment.properties().get(prop_id) {
+            property_value_to_python(py, value)
+        } else {
+            Ok(py.None())
+        }
+    }
+
+    fn iter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
+        let dict = PyDict::new_bound(py);
+        for (prop_id, value) in self.attachment.properties().iter() {
+            let py_value = property_value_to_python(py, value)?;
+            dict.set_item(format!("0x{:04X}", prop_id), py_value)?;
+        }
+        Ok(dict)
+    }
+
+    fn attachment_size(&self) -> PyResult<i32> {
+        self.attachment
+            .properties()
+            .attachment_size()
+            .map_err(|e| PstPythonError::from(e).into())
+    }
+
+    fn attachment_method(&self) -> PyResult<i32> {
+        self.attachment
+            .properties()
+            .attachment_method()
+            .map_err(|e| PstPythonError::from(e).into())
+    }
+
+    fn rendering_position(&self) -> PyResult<i32> {
+        self.attachment
+            .properties()
+            .rendering_position()
+            .map_err(|e| PstPythonError::from(e).into())
+    }
+}
+
+// Attachment
+#[pyclass]
+pub struct PyAttachment {
+    attachment: Rc<dyn outlook_pst::messaging::attachment::Attachment>,
+}
+
+unsafe impl Send for PyAttachment {}
+
+#[pymethods]
+impl PyAttachment {
+    fn properties(&self) -> PyAttachmentProperties {
+        PyAttachmentProperties {
+            attachment: self.attachment.clone(),
+        }
+    }
+
+    fn data<'a>(&self, py: Python<'a>) -> PyResult<Option<Bound<'a, PyBytes>>> {
+        match self.attachment.data() {
+            Some(outlook_pst::messaging::attachment::AttachmentData::Binary(bin)) => {
+                Ok(Some(PyBytes::new_bound(py, bin.buffer())))
+            }
+            _ => Ok(None),
+        }
+    }
 }
 
 // Store
@@ -781,6 +871,8 @@ fn pst_python(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFolderProperties>()?;
     m.add_class::<PyMessage>()?;
     m.add_class::<PyMessageProperties>()?;
+    m.add_class::<PyAttachment>()?;
+    m.add_class::<PyAttachmentProperties>()?;
     m.add_class::<PyTableContext>()?;
     m.add_class::<PyNamedPropertyMap>()?;
     m.add_class::<PyNamedPropertyMapProperties>()?;

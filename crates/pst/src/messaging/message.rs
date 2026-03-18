@@ -1,8 +1,8 @@
 //! ## [Message Objects](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-pst/1042af37-aaa4-4edc-bffd-90a1ede24188)
 
-use std::{collections::BTreeMap, io, rc::Rc};
+use std::{collections::BTreeMap, io, rc::{Rc, Weak}};
 
-use super::{read_write::*, store::*, *};
+use super::{attachment::Attachment, read_write::*, store::*, *};
 use crate::{
     ltp::{
         heap::HeapNode,
@@ -137,6 +137,11 @@ pub trait Message {
     fn properties(&self) -> &MessageProperties;
     fn recipient_table(&self) -> &Rc<dyn TableContext>;
     fn attachment_table(&self) -> Option<&Rc<dyn TableContext>>;
+    fn open_attachment(
+        &self,
+        sub_node: NodeId,
+        prop_ids: Option<&[u16]>,
+    ) -> io::Result<Rc<dyn Attachment>>;
 }
 
 struct MessageInner<Pst>
@@ -148,6 +153,7 @@ where
     sub_nodes: MessageSubNodes<Pst>,
     recipient_table: Rc<dyn TableContext>,
     attachment_table: Option<Rc<dyn TableContext>>,
+    self_ref: Weak<Pst::Message>,
 }
 
 impl<Pst> MessageInner<Pst>
@@ -358,6 +364,7 @@ where
             sub_nodes,
             recipient_table,
             attachment_table,
+            self_ref: Default::default(),
         })
     }
 }
@@ -396,6 +403,20 @@ impl Message for UnicodeMessage {
     fn attachment_table(&self) -> Option<&Rc<dyn TableContext>> {
         self.inner.attachment_table.as_ref()
     }
+
+    fn open_attachment(
+        &self,
+        sub_node: NodeId,
+        prop_ids: Option<&[u16]>,
+    ) -> io::Result<Rc<dyn Attachment>> {
+        use super::attachment::UnicodeAttachment;
+        let message = self
+            .inner
+            .self_ref
+            .upgrade()
+            .ok_or(MessagingError::FailedToLockFile)?;
+        Ok(UnicodeAttachment::read(message, sub_node, prop_ids)?)
+    }
 }
 
 impl MessageReadWrite<UnicodePstFile> for UnicodeMessage {
@@ -405,7 +426,11 @@ impl MessageReadWrite<UnicodePstFile> for UnicodeMessage {
         prop_ids: Option<&[u16]>,
     ) -> io::Result<Rc<Self>> {
         let inner = MessageInner::read(store, entry_id, prop_ids)?;
-        Ok(Rc::new(Self { inner }))
+        Ok(Rc::new_cyclic(|weak| {
+            let mut msg = Self { inner };
+            msg.inner.self_ref = weak.clone();
+            msg
+        }))
     }
 
     fn read_embedded(
@@ -414,7 +439,11 @@ impl MessageReadWrite<UnicodePstFile> for UnicodeMessage {
         prop_ids: Option<&[u16]>,
     ) -> io::Result<Rc<Self>> {
         let inner = MessageInner::read_embedded(store, node, prop_ids)?;
-        Ok(Rc::new(Self { inner }))
+        Ok(Rc::new_cyclic(|weak| {
+            let mut msg = Self { inner };
+            msg.inner.self_ref = weak.clone();
+            msg
+        }))
     }
 
     fn pst_store(&self) -> &Rc<UnicodeStore> {
@@ -456,6 +485,20 @@ impl Message for AnsiMessage {
     fn attachment_table(&self) -> Option<&Rc<dyn TableContext>> {
         self.inner.attachment_table.as_ref()
     }
+
+    fn open_attachment(
+        &self,
+        sub_node: NodeId,
+        prop_ids: Option<&[u16]>,
+    ) -> io::Result<Rc<dyn Attachment>> {
+        use super::attachment::AnsiAttachment;
+        let message = self
+            .inner
+            .self_ref
+            .upgrade()
+            .ok_or(MessagingError::FailedToLockFile)?;
+        Ok(AnsiAttachment::read(message, sub_node, prop_ids)?)
+    }
 }
 
 impl MessageReadWrite<AnsiPstFile> for AnsiMessage {
@@ -465,7 +508,11 @@ impl MessageReadWrite<AnsiPstFile> for AnsiMessage {
         prop_ids: Option<&[u16]>,
     ) -> io::Result<Rc<Self>> {
         let inner = MessageInner::read(store, entry_id, prop_ids)?;
-        Ok(Rc::new(Self { inner }))
+        Ok(Rc::new_cyclic(|weak| {
+            let mut msg = Self { inner };
+            msg.inner.self_ref = weak.clone();
+            msg
+        }))
     }
 
     fn read_embedded(
@@ -474,7 +521,11 @@ impl MessageReadWrite<AnsiPstFile> for AnsiMessage {
         prop_ids: Option<&[u16]>,
     ) -> io::Result<Rc<Self>> {
         let inner = MessageInner::read_embedded(store, node, prop_ids)?;
-        Ok(Rc::new(Self { inner }))
+        Ok(Rc::new_cyclic(|weak| {
+            let mut msg = Self { inner };
+            msg.inner.self_ref = weak.clone();
+            msg
+        }))
     }
 
     fn pst_store(&self) -> &Rc<AnsiStore> {
