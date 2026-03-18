@@ -1,9 +1,8 @@
 use outlook_pst::{
     ltp::prop_context::PropertyValue,
     messaging::{
-        attachment::{Attachment, AttachmentData},
+        attachment::{AttachmentData},
         folder::Folder,
-        message::Message,
         store::Store,
     },
     ndb::node_id::NodeId,
