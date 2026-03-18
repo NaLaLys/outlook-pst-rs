@@ -6,10 +6,10 @@ resolver = "2"
 compressed-rtf = { path = "crates/compressed-rtf" }
 
 [workspace.package]
-authors = ["Microsoft"]
+authors = ["NaLaLys"]
 edition = "2021"
 rust-version = "1.82"
-repository = "https://github.com/microsoft/outlook-pst-rs"
+repository = "https://github.com/nalalys/outlook-pst-rs"
 license = "MIT"
 keywords = ["win32", "outlook", "mapi"]
 categories = ["os::windows-apis"]
