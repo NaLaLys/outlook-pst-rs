@@ -12,6 +12,7 @@ use std::{
 
 use super::{heap::*, prop_context::*, prop_type::*, read_write::*, tree::*, *};
 use crate::{
+    messaging::store::Store,
     messaging::{
         read_write::StoreReadWrite,
         store::{AnsiStore, UnicodeStore},
@@ -996,12 +997,13 @@ where
         value: &TableRowColumnValue,
         prop_type: PropertyType,
     ) -> io::Result<PropertyValue> {
+        let codepage = self.store.properties().codepage();
         match value {
             TableRowColumnValue::Small(small) => Ok(small.clone()),
             TableRowColumnValue::Heap(heap_id) => {
                 let data = self.heap.find_entry(*heap_id)?;
                 let mut cursor = Cursor::new(data);
-                PropertyValueReadWrite::read(&mut cursor, prop_type)
+                PropertyValueReadWrite::read(&mut cursor, prop_type, codepage)
             }
             TableRowColumnValue::Node(sub_node_id) => {
                 let mut file = self
@@ -1040,7 +1042,7 @@ where
                         &mut page_cache,
                         &mut block_cache,
                     )
-                    .and_then(|mut r| PropertyValueReadWrite::read(&mut r, prop_type));
+                    .and_then(|mut r| PropertyValueReadWrite::read(&mut r, prop_type, codepage));
                 block_cache.insert(block.block().block(), data_tree);
                 result
             }

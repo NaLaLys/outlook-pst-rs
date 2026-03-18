@@ -197,6 +197,17 @@ impl StoreProperties {
         Ok(store_record_key == entry_id.record_key)
     }
 
+    pub fn codepage(&self) -> u16 {
+        // PidTagCodepageId = 0x66C3
+        self.properties
+            .get(&0x66C3)
+            .and_then(|v| match v {
+                PropertyValue::Integer32(cp) => u16::try_from(*cp).ok(),
+                _ => None,
+            })
+            .unwrap_or(1252)
+    }
+
     pub fn display_name(&self) -> io::Result<String> {
         let display_name = self
             .properties
@@ -356,12 +367,36 @@ where
 
             let tree = <Pst as PstFile>::PropertyTree::new(heap, header.user_root());
             let prop_context = <Pst as PstFile>::PropertyContext::new(node, tree);
-            let properties = prop_context
-                .properties()?
+            let prop_records = prop_context.properties()?;
+
+            // First pass: read only small values to extract codepage (0x66C3 is Integer32)
+            let codepage = prop_records
+                .iter()
+                .find(|(key, _)| **key == 0x66C3)
+                .and_then(|(_, record)| {
+                    record
+                        .value()
+                        .small_value(record.prop_type())
+                        .and_then(|v| match v {
+                            PropertyValue::Integer32(cp) => u16::try_from(cp).ok(),
+                            _ => None,
+                        })
+                })
+                .unwrap_or(1252);
+
+            // Second pass: read all properties with the correct codepage
+            let properties = prop_records
                 .into_iter()
                 .map(|(prop_id, record)| {
                     prop_context
-                        .read_property(file, encoding, &block_btree, &mut page_cache, record)
+                        .read_property(
+                            file,
+                            encoding,
+                            &block_btree,
+                            &mut page_cache,
+                            record,
+                            codepage,
+                        )
                         .map(|value| (prop_id, value))
                 })
                 .collect::<io::Result<BTreeMap<_, _>>>()?;

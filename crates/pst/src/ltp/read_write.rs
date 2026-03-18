@@ -44,7 +44,7 @@ pub trait PropertyTreeRecordReadWrite: Sized {
 }
 
 pub trait PropertyValueReadWrite: Sized {
-    fn read(f: &mut dyn Read, prop_type: PropertyType) -> io::Result<Self>;
+    fn read(f: &mut dyn Read, prop_type: PropertyType, codepage: u16) -> io::Result<Self>;
     fn write(&self, f: &mut dyn Write) -> io::Result<()>;
 }
 
@@ -60,6 +60,7 @@ where
         block_btree: &PstFileReadWriteBlockBTree<Pst>,
         page_cache: &mut RootBTreePageCache<<Pst as PstFile>::BlockBTree>,
         value: PropertyTreeRecordValue,
+        codepage: u16,
     ) -> io::Result<PropertyValue>;
 }
 

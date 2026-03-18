@@ -201,6 +201,7 @@ where
 
             let tree = <Pst as PstFile>::PropertyTree::new(heap, header.user_root());
             let prop_context = <Pst as PstFile>::PropertyContext::new(node, tree);
+            let codepage = store.properties().codepage();
             let folder_type = if entry_id.node_id() == NID_ROOT_FOLDER {
                 0
             } else if node_id_type == NodeIdType::SearchFolder {
@@ -214,7 +215,14 @@ where
                 .into_iter()
                 .map(|(prop_id, record)| {
                     prop_context
-                        .read_property(file, encoding, &block_btree, &mut block_page_cache, record)
+                        .read_property(
+                            file,
+                            encoding,
+                            &block_btree,
+                            &mut block_page_cache,
+                            record,
+                            codepage,
+                        )
                         .map(|value| (prop_id, value))
                 })
                 .chain([

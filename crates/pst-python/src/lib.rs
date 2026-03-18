@@ -12,9 +12,9 @@ use property_value::property_value_to_python;
 
 // Helper function to convert EntryId to dict
 fn entry_id_to_dict<'a>(py: Python<'a>, entry_id: &EntryId) -> PyResult<Bound<'a, PyDict>> {
-    let dict = PyDict::new_bound(py);
+    let dict = PyDict::new(py);
     let record_key = entry_id.record_key();
-    let record_key_bytes = PyBytes::new_bound(py, record_key);
+    let record_key_bytes = PyBytes::new(py, record_key);
     dict.set_item("record_key", record_key_bytes)?;
     dict.set_item("node_id", format!("{:X}", u32::from(entry_id.node_id())))?;
     Ok(dict)
@@ -35,7 +35,9 @@ pub struct PyStoreProperties {
     store: Rc<dyn outlook_pst::messaging::store::Store>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyStoreProperties {}
+unsafe impl Sync for PyStoreProperties {}
 
 #[pymethods]
 impl PyStoreProperties {
@@ -48,7 +50,7 @@ impl PyStoreProperties {
     }
 
     fn iter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         for (prop_id, value) in self.store.properties().iter() {
             let py_value = property_value_to_python(py, value)?;
             dict.set_item(format!("0x{:04X}", prop_id), py_value)?;
@@ -62,7 +64,7 @@ impl PyStoreProperties {
             .properties()
             .record_key()
             .map_err(|e| PstPythonError::from(e))?;
-        Ok(PyBytes::new_bound(py, record_key.record_key()))
+        Ok(PyBytes::new(py, record_key.record_key()))
     }
 
     fn make_entry_id<'a>(&self, py: Python<'a>, node_id_str: &str) -> PyResult<Bound<'a, PyDict>> {
@@ -116,7 +118,9 @@ pub struct PyFolderProperties {
     folder: Rc<dyn outlook_pst::messaging::folder::Folder>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyFolderProperties {}
+unsafe impl Sync for PyFolderProperties {}
 
 #[pymethods]
 impl PyFolderProperties {
@@ -129,7 +133,7 @@ impl PyFolderProperties {
     }
 
     fn iter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         for (prop_id, value) in self.folder.properties().iter() {
             let py_value = property_value_to_python(py, value)?;
             dict.set_item(format!("0x{:04X}", prop_id), py_value)?;
@@ -176,7 +180,9 @@ pub struct PyMessageProperties {
     message: Rc<dyn outlook_pst::messaging::message::Message>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyMessageProperties {}
+unsafe impl Sync for PyMessageProperties {}
 
 #[pymethods]
 impl PyMessageProperties {
@@ -189,7 +195,7 @@ impl PyMessageProperties {
     }
 
     fn iter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         for (prop_id, value) in self.message.properties().iter() {
             let py_value = property_value_to_python(py, value)?;
             dict.set_item(format!("0x{:04X}", prop_id), py_value)?;
@@ -233,10 +239,10 @@ impl PyMessageProperties {
             .map_err(|e| PstPythonError::from(e))?;
         let windows_epoch = 116444736000000000u64;
         let unix_timestamp = (time as u64).saturating_sub(windows_epoch) / 10_000_000;
-        let datetime_module = py.import_bound("datetime")?;
+        let datetime_module = py.import("datetime")?;
         let datetime_class = datetime_module.getattr("datetime")?;
         let datetime = datetime_class.call_method1("fromtimestamp", (unix_timestamp as i64,))?;
-        Ok(datetime.to_object(py))
+        Ok(datetime.unbind())
     }
 
     fn last_modification_time<'a>(&self, py: Python<'a>) -> PyResult<PyObject> {
@@ -247,10 +253,10 @@ impl PyMessageProperties {
             .map_err(|e| PstPythonError::from(e))?;
         let windows_epoch = 116444736000000000u64;
         let unix_timestamp = (time as u64).saturating_sub(windows_epoch) / 10_000_000;
-        let datetime_module = py.import_bound("datetime")?;
+        let datetime_module = py.import("datetime")?;
         let datetime_class = datetime_module.getattr("datetime")?;
         let datetime = datetime_class.call_method1("fromtimestamp", (unix_timestamp as i64,))?;
-        Ok(datetime.to_object(py))
+        Ok(datetime.unbind())
     }
 
     fn search_key<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyBytes>> {
@@ -259,7 +265,7 @@ impl PyMessageProperties {
             .properties()
             .search_key()
             .map_err(|e| PstPythonError::from(e))?;
-        Ok(PyBytes::new_bound(py, key))
+        Ok(PyBytes::new(py, key))
     }
 }
 
@@ -269,21 +275,23 @@ pub struct PyTableContext {
     table: Rc<dyn outlook_pst::ltp::table_context::TableContext>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyTableContext {}
+unsafe impl Sync for PyTableContext {}
 
 #[pymethods]
 impl PyTableContext {
     fn context<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
         let ctx = self.table.context();
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         dict.set_item("end_4byte_values", ctx.end_4byte_values())?;
         dict.set_item("end_2byte_values", ctx.end_2byte_values())?;
         dict.set_item("end_1byte_values", ctx.end_1byte_values())?;
         dict.set_item("end_existence_bitmap", ctx.end_existence_bitmap())?;
 
-        let columns = PyList::empty_bound(py);
+        let columns = PyList::empty(py);
         for col in ctx.columns() {
-            let col_dict = PyDict::new_bound(py);
+            let col_dict = PyDict::new(py);
             col_dict.set_item("prop_type", col.prop_type() as u16)?;
             col_dict.set_item("prop_id", col.prop_id())?;
             col_dict.set_item("offset", col.offset())?;
@@ -296,11 +304,11 @@ impl PyTableContext {
     }
 
     fn rows_matrix<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyList>> {
-        let rows = PyList::empty_bound(py);
+        let rows = PyList::empty(py);
         let context = self.table.context();
 
         for row in self.table.rows_matrix() {
-            let row_dict = PyDict::new_bound(py);
+            let row_dict = PyDict::new(py);
             row_dict.set_item("id", u32::from(row.id()))?;
             row_dict.set_item("unique", row.unique())?;
 
@@ -308,7 +316,7 @@ impl PyTableContext {
                 .columns(context)
                 .map_err(|e| PstPythonError::new(format!("Failed to read columns: {}", e)))?;
 
-            let props_dict = PyDict::new_bound(py);
+            let props_dict = PyDict::new(py);
             for (col, value) in context.columns().iter().zip(columns.iter()) {
                 if let Some(value) = value.as_ref() {
                     match self.table.read_column(value, col.prop_type()) {
@@ -334,7 +342,7 @@ impl PyTableContext {
             .map_err(|e| PstPythonError::new(format!("Row not found: {}", e)))?;
         let context = self.table.context();
 
-        let row_dict = PyDict::new_bound(py);
+        let row_dict = PyDict::new(py);
         row_dict.set_item("id", u32::from(row.id()))?;
         row_dict.set_item("unique", row.unique())?;
 
@@ -342,7 +350,7 @@ impl PyTableContext {
             .columns(context)
             .map_err(|e| PstPythonError::new(format!("Failed to read columns: {}", e)))?;
 
-        let props_dict = PyDict::new_bound(py);
+        let props_dict = PyDict::new(py);
         for (col, value) in context.columns().iter().zip(columns.iter()) {
             if let Some(value) = value.as_ref() {
                 match self.table.read_column(value, col.prop_type()) {
@@ -365,7 +373,9 @@ pub struct PyNamedPropertyMapProperties {
     map: Rc<dyn outlook_pst::messaging::named_prop::NamedPropertyMap>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyNamedPropertyMapProperties {}
+unsafe impl Sync for PyNamedPropertyMapProperties {}
 
 #[pymethods]
 impl PyNamedPropertyMapProperties {
@@ -378,7 +388,7 @@ impl PyNamedPropertyMapProperties {
     }
 
     fn iter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         for (prop_id, value) in self.map.properties().iter() {
             let py_value = property_value_to_python(py, value)?;
             dict.set_item(format!("0x{:04X}", prop_id), py_value)?;
@@ -399,7 +409,7 @@ impl PyNamedPropertyMapProperties {
             .properties()
             .stream_guid()
             .map_err(|e| PstPythonError::from(e))?;
-        let list = PyList::empty_bound(py);
+        let list = PyList::empty(py);
         for guid in guids {
             list.append(format!("{:?}", guid))?;
         }
@@ -412,9 +422,9 @@ impl PyNamedPropertyMapProperties {
             .properties()
             .stream_entry()
             .map_err(|e| PstPythonError::from(e))?;
-        let list = PyList::empty_bound(py);
+        let list = PyList::empty(py);
         for entry in entries {
-            let entry_dict = PyDict::new_bound(py);
+            let entry_dict = PyDict::new(py);
             match entry.id() {
                 outlook_pst::messaging::named_prop::NamedPropertyId::Number(n) => {
                     entry_dict.set_item("id_type", "Number")?;
@@ -437,7 +447,7 @@ impl PyNamedPropertyMapProperties {
             .properties()
             .stream_string()
             .map_err(|e| PstPythonError::from(e))?;
-        let list = PyList::empty_bound(py);
+        let list = PyList::empty(py);
         for string_entry in strings {
             list.append(string_entry.to_string())?;
         }
@@ -451,7 +461,9 @@ pub struct PyNamedPropertyMap {
     map: Rc<dyn outlook_pst::messaging::named_prop::NamedPropertyMap>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyNamedPropertyMap {}
+unsafe impl Sync for PyNamedPropertyMap {}
 
 #[pymethods]
 impl PyNamedPropertyMap {
@@ -468,20 +480,22 @@ pub struct PySearchUpdateQueue {
     queue: Rc<dyn outlook_pst::messaging::search::SearchUpdateQueue>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PySearchUpdateQueue {}
+unsafe impl Sync for PySearchUpdateQueue {}
 
 #[pymethods]
 impl PySearchUpdateQueue {
     fn updates<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyList>> {
         let updates = self.queue.updates();
-        let list = PyList::empty_bound(py);
+        let list = PyList::empty(py);
 
         for update in updates {
-            let update_dict = PyDict::new_bound(py);
+            let update_dict = PyDict::new(py);
             update_dict.set_item("flags", update.flags())?;
 
             if let Some(data) = update.data() {
-                let data_dict = PyDict::new_bound(py);
+                let data_dict = PyDict::new(py);
                 match data {
                     outlook_pst::messaging::search::SearchUpdateData::MessageAdded {
                         parent,
@@ -624,7 +638,9 @@ pub struct PyFolder {
     folder: Rc<dyn outlook_pst::messaging::folder::Folder>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyFolder {}
+unsafe impl Sync for PyFolder {}
 
 #[pymethods]
 impl PyFolder {
@@ -671,7 +687,9 @@ pub struct PyMessage {
     message: Rc<dyn outlook_pst::messaging::message::Message>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyMessage {}
+unsafe impl Sync for PyMessage {}
 
 #[pymethods]
 impl PyMessage {
@@ -696,6 +714,100 @@ impl PyMessage {
             Ok(None)
         }
     }
+
+    #[pyo3(signature = (node_id_str, prop_ids=None))]
+    fn open_attachment(
+        &self,
+        node_id_str: &str,
+        prop_ids: Option<Vec<u16>>,
+    ) -> PyResult<PyAttachment> {
+        let node_id = parse_node_id(node_id_str)?;
+        let prop_ids_slice = prop_ids.as_deref();
+        let attachment = self
+            .message
+            .open_attachment(node_id, prop_ids_slice)
+            .map_err(|e| PstPythonError::from(e))?;
+        Ok(PyAttachment { attachment })
+    }
+}
+
+// AttachmentProperties
+#[pyclass]
+pub struct PyAttachmentProperties {
+    attachment: Rc<dyn outlook_pst::messaging::attachment::Attachment>,
+}
+
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
+unsafe impl Send for PyAttachmentProperties {}
+unsafe impl Sync for PyAttachmentProperties {}
+
+#[pymethods]
+impl PyAttachmentProperties {
+    fn get(&self, py: Python, prop_id: u16) -> PyResult<PyObject> {
+        if let Some(value) = self.attachment.properties().get(prop_id) {
+            property_value_to_python(py, value)
+        } else {
+            Ok(py.None())
+        }
+    }
+
+    fn iter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyDict>> {
+        let dict = PyDict::new(py);
+        for (prop_id, value) in self.attachment.properties().iter() {
+            let py_value = property_value_to_python(py, value)?;
+            dict.set_item(format!("0x{:04X}", prop_id), py_value)?;
+        }
+        Ok(dict)
+    }
+
+    fn attachment_size(&self) -> PyResult<i32> {
+        self.attachment
+            .properties()
+            .attachment_size()
+            .map_err(|e| PstPythonError::from(e).into())
+    }
+
+    fn attachment_method(&self) -> PyResult<i32> {
+        self.attachment
+            .properties()
+            .attachment_method()
+            .map_err(|e| PstPythonError::from(e).into())
+    }
+
+    fn rendering_position(&self) -> PyResult<i32> {
+        self.attachment
+            .properties()
+            .rendering_position()
+            .map_err(|e| PstPythonError::from(e).into())
+    }
+}
+
+// Attachment
+#[pyclass]
+pub struct PyAttachment {
+    attachment: Rc<dyn outlook_pst::messaging::attachment::Attachment>,
+}
+
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
+unsafe impl Send for PyAttachment {}
+unsafe impl Sync for PyAttachment {}
+
+#[pymethods]
+impl PyAttachment {
+    fn properties(&self) -> PyAttachmentProperties {
+        PyAttachmentProperties {
+            attachment: self.attachment.clone(),
+        }
+    }
+
+    fn data<'a>(&self, py: Python<'a>) -> PyResult<Option<Bound<'a, PyBytes>>> {
+        match self.attachment.data() {
+            Some(outlook_pst::messaging::attachment::AttachmentData::Binary(bin)) => {
+                Ok(Some(PyBytes::new(py, bin.buffer())))
+            }
+            _ => Ok(None),
+        }
+    }
 }
 
 // Store
@@ -704,7 +816,9 @@ pub struct PyStore {
     store: Rc<dyn outlook_pst::messaging::store::Store>,
 }
 
+// SAFETY: Python GIL prevents concurrent access; Rc is only accessed from one thread.
 unsafe impl Send for PyStore {}
+unsafe impl Sync for PyStore {}
 
 #[pymethods]
 impl PyStore {
@@ -781,6 +895,8 @@ fn pst_python(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFolderProperties>()?;
     m.add_class::<PyMessage>()?;
     m.add_class::<PyMessageProperties>()?;
+    m.add_class::<PyAttachment>()?;
+    m.add_class::<PyAttachmentProperties>()?;
     m.add_class::<PyTableContext>()?;
     m.add_class::<PyNamedPropertyMap>()?;
     m.add_class::<PyNamedPropertyMapProperties>()?;

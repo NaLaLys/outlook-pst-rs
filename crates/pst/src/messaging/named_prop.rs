@@ -339,7 +339,7 @@ impl NamedPropertyMapProperties {
                 let start = u16::from(index) as usize * 16;
                 let end = start + 16;
                 let mut cursor = Cursor::new(&value.buffer()[start..end]);
-                let entry = PropertyValue::read(&mut cursor, PropertyType::Guid)?;
+                let entry = PropertyValue::read(&mut cursor, PropertyType::Guid, 0)?;
                 match entry {
                     PropertyValue::Guid(guid) => Ok(guid),
                     invalid => Err(MessagingError::InvalidNamedPropertyMapStreamGuid(
@@ -365,7 +365,7 @@ impl NamedPropertyMapProperties {
             PropertyValue::Binary(value) => {
                 let mut results = Vec::with_capacity(value.buffer().len() / 16);
                 let mut cursor = Cursor::new(value.buffer());
-                while let Ok(value) = PropertyValue::read(&mut cursor, PropertyType::Guid) {
+                while let Ok(value) = PropertyValue::read(&mut cursor, PropertyType::Guid, 0) {
                     match value {
                         PropertyValue::Guid(guid) => results.push(guid),
                         invalid => {
@@ -540,12 +540,20 @@ where
             let prop_context = <<Pst as PstFile>::PropertyContext as PropertyContextReadWrite<
                 Pst,
             >>::new(node, tree);
+            let codepage = store.properties().codepage();
             let properties = prop_context
                 .properties()?
                 .into_iter()
                 .map(|(prop_id, record)| {
                     prop_context
-                        .read_property(file, encoding, &block_btree, &mut page_cache, record)
+                        .read_property(
+                            file,
+                            encoding,
+                            &block_btree,
+                            &mut page_cache,
+                            record,
+                            codepage,
+                        )
                         .map(|value| (prop_id, value))
                 })
                 .collect::<io::Result<BTreeMap<_, _>>>()?;
