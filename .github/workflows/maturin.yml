@@ -38,8 +38,40 @@ jobs:
           name: wheels-linux-${{ matrix.target }}-py${{ matrix.py }}
           path: dist/*.whl
 
+  wheels-macos:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        py:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - name: Build wheels (macOS)
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: aarch64-apple-darwin
+          args: >
+            -m crates/pst-python/Cargo.toml
+            --release
+            --out dist
+            -i python${{ matrix.py }}
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-py${{ matrix.py }}
+          path: dist/*.whl
+
   release:
-    needs: wheels-linux
+    needs: [ wheels-linux, wheels-macos ]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
