@@ -42,6 +42,8 @@ jobs:
     needs: wheels-linux
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -58,3 +60,50 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  pages:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Get tag version
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: List release assets
+        id: assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ steps.tag.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --json assets -q '.assets[].name' > wheel_names.txt
+
+      - name: Generate wheels.html
+        run: |
+          TAG="${{ steps.tag.outputs.version }}"
+          REPO="${{ github.repository }}"
+          mkdir -p docs
+          {
+            echo '<!doctype html>'
+            echo '<html><body>'
+            while IFS= read -r name; do
+              echo "  <a href=\"https://github.com/${REPO}/releases/download/${TAG}/${name}\">${name}</a><br>"
+            done < wheel_names.txt
+            echo '</body></html>'
+          } > docs/wheels.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
