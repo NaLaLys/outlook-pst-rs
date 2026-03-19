@@ -15,3 +15,4 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.24.1", features = ["extension-module"] }
 outlook-pst = { path = "../pst" }
+compressed-rtf = { path = "../compressed-rtf" }
