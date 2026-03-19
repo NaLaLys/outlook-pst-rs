@@ -902,7 +902,15 @@ fn pst_python(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyNamedPropertyMapProperties>()?;
     m.add_class::<PySearchUpdateQueue>()?;
     m.add_function(wrap_pyfunction!(open_pst, m)?)?;
+    m.add_function(wrap_pyfunction!(decompress_rtf, m)?)?;
     Ok(())
+}
+
+#[pyfunction]
+fn decompress_rtf(data: &[u8]) -> PyResult<String> {
+    compressed_rtf::decompress_rtf(data)
+        .map_err(|e| PstPythonError::new(format!("RTF decompression failed: {e}")))
+        .map_err(|e| e.into())
 }
 
 #[pyfunction]
