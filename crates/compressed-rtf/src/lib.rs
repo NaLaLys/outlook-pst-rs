@@ -86,11 +86,7 @@ pub fn decompress_rtf(data: &[u8]) -> Result<String> {
         UNCOMPRESSED => {
             // Tolerate a raw_size that overruns the buffer: Outlook reads whatever is present.
             let end = (raw_size as usize).saturating_add(16).min(total_size);
-            let data: Vec<_> = data[16..end]
-                .iter()
-                .copied()
-                .map(u16::from)
-                .collect();
+            let data: Vec<_> = data[16..end].iter().copied().map(u16::from).collect();
             Ok(String::from_utf16_lossy(&data))
         }
         invalid => Err(Error::InvalidCompressionType(invalid)),
