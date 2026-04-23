@@ -36,6 +36,9 @@ const UNCOMPRESSED: u32 = 0x414C454D;
 
 pub fn decompress_rtf(data: &[u8]) -> Result<String> {
     let total_size = data.len();
+    if total_size < 16 {
+        return Err(Error::CompressedSizeMismatch(total_size as u32));
+    }
     let mut cursor = Cursor::new(&data[..16]);
     let compressed_size = cursor.read_u32::<LittleEndian>()?;
 
@@ -81,11 +84,9 @@ pub fn decompress_rtf(data: &[u8]) -> Result<String> {
             Ok(String::from_utf16_lossy(&buffer))
         }
         UNCOMPRESSED => {
-            let data: Vec<_> = data[16..raw_size as usize + 16]
-                .iter()
-                .copied()
-                .map(u16::from)
-                .collect();
+            // Tolerate a raw_size that overruns the buffer: Outlook reads whatever is present.
+            let end = (raw_size as usize).saturating_add(16).min(total_size);
+            let data: Vec<_> = data[16..end].iter().copied().map(u16::from).collect();
             Ok(String::from_utf16_lossy(&data))
         }
         invalid => Err(Error::InvalidCompressionType(invalid)),
@@ -239,5 +240,26 @@ mod tests {
     fn test_compress_crossing_write_rtf() {
         let compressed = compress_rtf(UNCOMPRESSED_CROSSING_WRITE_RTF).unwrap();
         assert_eq!(&compressed, COMPRESSED_CROSSING_WRITE_RTF);
+    }
+
+    #[test]
+    fn test_decompress_truncated_header() {
+        let data = [0_u8; 10];
+        let err = decompress_rtf(&data).unwrap_err();
+        assert!(matches!(err, Error::CompressedSizeMismatch(_)));
+    }
+
+    #[test]
+    fn test_decompress_uncompressed_raw_size_exceeds_data() {
+        // compressed_size=16 (so total_size=20 passes the outer check),
+        // raw_size=100 (way past the 4 payload bytes),
+        // compression_type=UNCOMPRESSED, crc=0, then 4 bytes of payload "ABCD".
+        // Clamp behavior: return whatever payload is present (mirrors Outlook).
+        let data: [u8; 20] = [
+            0x10, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x4D, 0x45, 0x4C, 0x41, 0x00, 0x00,
+            0x00, 0x00, 0x41, 0x42, 0x43, 0x44,
+        ];
+        let rtf = decompress_rtf(&data).unwrap();
+        assert_eq!(rtf, "ABCD");
     }
 }

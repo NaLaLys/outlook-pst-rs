@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "pst-python"
-version = "1.3.0"
+version = "1.3.1"
 description = "Python bindings for outlook-pst"
 readme = "README.md"
 requires-python = "==3.10.*"
